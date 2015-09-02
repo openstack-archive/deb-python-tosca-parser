@@ -1,0 +1,9 @@
+Document: python-tosca-parser-doc
+Title: tosca-parser Documentation
+Author: N/A
+Abstract: Sphinx documentation for tosca-parser
+Section: Programming/Python
+
+Format: HTML
+Index: /usr/share/doc/python-tosca-parser-doc/html/index.html
+Files: /usr/share/doc/python-tosca-parser-doc/html/*
