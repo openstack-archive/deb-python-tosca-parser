@@ -1,4 +1,4 @@
-python-tosca-parser (0.1.0-1) unstable; urgency=medium
+python-tosca-parser (0.1.0-1) experimental; urgency=medium
 
   * Initial release. (Closes: #797775)
 
