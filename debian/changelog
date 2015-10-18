@@ -1,3 +1,9 @@
+python-tosca-parser (0.1.0-3) unstable; urgency=medium
+
+  * Added missing openstack-pkg-tools build-depends (Closes: #802150).
+
+ -- Thomas Goirand <zigo@debian.org>  Sun, 18 Oct 2015 14:11:41 +0000
+
 python-tosca-parser (0.1.0-2) unstable; urgency=medium
 
   * Uploading to unstable.
