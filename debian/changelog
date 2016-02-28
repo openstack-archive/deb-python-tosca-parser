@@ -1,3 +1,9 @@
+python-tosca-parser (0.1.0-4) UNRELEASED; urgency=medium
+
+  * Fixed VCS URLs (https).
+
+ -- Ondřej Nový <novy@ondrej.org>  Sun, 28 Feb 2016 15:52:18 +0100
+
 python-tosca-parser (0.1.0-3) unstable; urgency=medium
 
   * Added missing openstack-pkg-tools build-depends (Closes: #802150).
