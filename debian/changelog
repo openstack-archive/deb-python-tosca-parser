@@ -8,6 +8,7 @@ python-tosca-parser (0.4.0-1) UNRELEASED; urgency=medium
   * Fixed order in d/copyright.
   * Install /usr/bin/tosca-parser as alternatives in both packages.
   * Added Debian tests.
+  * Added upstream changelog.
 
  -- Ondřej Nový <novy@ondrej.org>  Sun, 28 Feb 2016 15:52:18 +0100
 
