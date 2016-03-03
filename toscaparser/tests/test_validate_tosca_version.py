@@ -13,6 +13,7 @@
 from toscaparser.common.exception import (
     InvalidTOSCAVersionPropertyException)
 from toscaparser.tests.base import TestCase
+from toscaparser.utils.gettextutils import _
 from toscaparser.utils.validateutils import TOSCAVersionProperty
 
 
@@ -67,73 +68,65 @@ class TOSCAVersionPropertyTest(TestCase):
     def test_tosca_version_property_invalid_major_version(self):
 
         version = 'x'
-        exp_msg = ('Value of TOSCA version property "x" is invalid.')
-        try:
-            TOSCAVersionProperty(version).get_version()
-        except InvalidTOSCAVersionPropertyException as err:
-            self.assertEqual(exp_msg, err.__str__())
+        exp_msg = _('Value of TOSCA version property "x" is invalid.')
+        err = self.assertRaises(InvalidTOSCAVersionPropertyException,
+                                TOSCAVersionProperty, version)
+        self.assertEqual(exp_msg, err.__str__())
 
     def test_tosca_version_property_invalid_minor_version(self):
 
         version = '18.x'
-        exp_msg = ('Value of TOSCA version property "18.x" is invalid.')
-        try:
-            TOSCAVersionProperty(version).get_version()
-        except InvalidTOSCAVersionPropertyException as err:
-            self.assertEqual(exp_msg, err.__str__())
+        exp_msg = _('Value of TOSCA version property "18.x" is invalid.')
+        err = self.assertRaises(InvalidTOSCAVersionPropertyException,
+                                TOSCAVersionProperty, version)
+        self.assertEqual(exp_msg, err.__str__())
 
         version = '18.x.y'
-        exp_msg = ('Value of TOSCA version property "18.x.y" is invalid.')
-        try:
-            TOSCAVersionProperty(version).get_version()
-        except InvalidTOSCAVersionPropertyException as err:
-            self.assertEqual(exp_msg, err.__str__())
+        exp_msg = _('Value of TOSCA version property "18.x.y" is invalid.')
+        err = self.assertRaises(InvalidTOSCAVersionPropertyException,
+                                TOSCAVersionProperty, version)
+        self.assertEqual(exp_msg, err.__str__())
 
         version = '18-2'
-        exp_msg = ('Value of TOSCA version property "18-2" is invalid.')
-        try:
-            TOSCAVersionProperty(version).get_version()
-        except InvalidTOSCAVersionPropertyException as err:
-            self.assertEqual(exp_msg, err.__str__())
+        exp_msg = _('Value of TOSCA version property "18-2" is invalid.')
+        err = self.assertRaises(InvalidTOSCAVersionPropertyException,
+                                TOSCAVersionProperty, version)
+        self.assertEqual(exp_msg, err.__str__())
 
     def test_tosca_version_property_invalid_fix_version(self):
 
         version = '18.0.a'
-        exp_msg = ('Value of TOSCA version property "18.0.a" is invalid.')
-        try:
-            TOSCAVersionProperty(version).get_version()
-        except InvalidTOSCAVersionPropertyException as err:
-            self.assertEqual(exp_msg, err.__str__())
+        exp_msg = _('Value of TOSCA version property "18.0.a" is invalid.')
+        err = self.assertRaises(InvalidTOSCAVersionPropertyException,
+                                TOSCAVersionProperty, version)
+        self.assertEqual(exp_msg, err.__str__())
 
     def test_tosca_version_property_invalid_qualifier(self):
 
         version = '18.0.1-xyz'
-        exp_msg = ('Value of TOSCA version property "18.0.1-xyz" is invalid.')
-        try:
-            TOSCAVersionProperty(version).get_version()
-        except InvalidTOSCAVersionPropertyException as err:
-            self.assertEqual(exp_msg, err.__str__())
+        exp_msg = _('Value of TOSCA version property "18.0.1-xyz" is invalid.')
+        err = self.assertRaises(InvalidTOSCAVersionPropertyException,
+                                TOSCAVersionProperty, version)
+        self.assertEqual(exp_msg, err.__str__())
 
         version = '0.0.0.abc'
-        exp_msg = ('Value of TOSCA version property "0.0.0.abc" is invalid.')
-        try:
-            TOSCAVersionProperty(version).get_version()
-        except InvalidTOSCAVersionPropertyException as err:
-            self.assertEqual(exp_msg, err.__str__())
+        exp_msg = _('Value of TOSCA version property "0.0.0.abc" is invalid.')
+        err = self.assertRaises(InvalidTOSCAVersionPropertyException,
+                                TOSCAVersionProperty, version)
+        self.assertEqual(exp_msg, err.__str__())
 
     def test_tosca_version_property_invalid_build_version(self):
 
         version = '18.0.1.abc-x'
-        exp_msg = ('Value of TOSCA version property '
-                   '"18.0.1.abc-x" is invalid.')
-        try:
-            TOSCAVersionProperty(version).get_version()
-        except InvalidTOSCAVersionPropertyException as err:
-            self.assertEqual(exp_msg, err.__str__())
+        exp_msg = _('Value of TOSCA version property '
+                    '"18.0.1.abc-x" is invalid.')
+        err = self.assertRaises(InvalidTOSCAVersionPropertyException,
+                                TOSCAVersionProperty, version)
+        self.assertEqual(exp_msg, err.__str__())
 
         version = '0.0.0.abc-x'
-        exp_msg = ('Value of TOSCA version property "0.0.0.abc-x" is invalid.')
-        try:
-            TOSCAVersionProperty(version).get_version()
-        except InvalidTOSCAVersionPropertyException as err:
-            self.assertEqual(exp_msg, err.__str__())
+        exp_msg = _('Value of TOSCA version property "0.0.0.abc-x" is '
+                    'invalid.')
+        err = self.assertRaises(InvalidTOSCAVersionPropertyException,
+                                TOSCAVersionProperty, version)
+        self.assertEqual(exp_msg, err.__str__())

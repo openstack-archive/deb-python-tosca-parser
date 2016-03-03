@@ -21,6 +21,7 @@ from toscaparser.functions import GetProperty
 from toscaparser.nodetemplate import NodeTemplate
 from toscaparser.tests.base import TestCase
 from toscaparser.tosca_template import ToscaTemplate
+from toscaparser.utils.gettextutils import _
 import toscaparser.utils.yamlparser
 
 
@@ -67,7 +68,7 @@ class ToscaTemplateTest(TestCase):
         expected_type = "tosca.nodes.Database"
         expected_properties = ['name', 'password', 'user']
         expected_capabilities = ['database_endpoint']
-        expected_requirements = [{'host': {'node': 'mysql_dbms'}}]
+        expected_requirements = [{'host': 'mysql_dbms'}]
         ''' TODO: needs enhancement in tosca_elk.yaml..
         expected_relationshp = ['tosca.relationships.HostedOn']
         expected_host = ['mysql_dbms']
@@ -185,6 +186,7 @@ class ToscaTemplateTest(TestCase):
             compute_type = NodeType(tpl.type)
             self.assertEqual(
                 sorted(['tosca.capabilities.Container',
+                        'tosca.capabilities.Node',
                         'tosca.capabilities.OperatingSystem',
                         'tosca.capabilities.network.Bindable',
                         'tosca.capabilities.Scalable']),
@@ -217,6 +219,22 @@ class ToscaTemplateTest(TestCase):
                                              interface.name)
                             self.assertEqual(artifact,
                                              interface.implementation)
+
+    def test_relationship(self):
+        template = ToscaTemplate(self.tosca_elk_tpl)
+        for node_tpl in template.nodetemplates:
+            if node_tpl.name == 'paypal_pizzastore':
+                expected_relationships = ['tosca.relationships.ConnectsTo',
+                                          'tosca.relationships.HostedOn']
+                expected_hosts = ['tosca.nodes.Database',
+                                  'tosca.nodes.WebServer']
+                self.assertEqual(len(node_tpl.relationships), 2)
+                self.assertEqual(
+                    expected_relationships,
+                    sorted([k.type for k in node_tpl.relationships.keys()]))
+                self.assertEqual(
+                    expected_hosts,
+                    sorted([v.type for v in node_tpl.relationships.values()]))
 
     def test_template_macro(self):
         template = ToscaTemplate(self.tosca_elk_tpl)
@@ -352,7 +370,7 @@ class ToscaTemplateTest(TestCase):
           properties:
             test:
               type: integer
-              required: no
+              required: false
         '''
         expected_capabilities = ['test_cap']
         nodetemplates = (toscaparser.utils.yamlparser.
@@ -382,3 +400,307 @@ class ToscaTemplateTest(TestCase):
                                  custom_def).get_capabilities_objects())
         self.assertEqual('Type "tosca.capabilities.TestCapability" is not '
                          'a valid type.', six.text_type(err))
+
+    def test_local_template_with_local_relpath_import(self):
+        tosca_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/tosca_single_instance_wordpress.yaml")
+        tosca = ToscaTemplate(tosca_tpl)
+        self.assertTrue(tosca.topology_template.custom_defs)
+
+    def test_local_template_with_url_import(self):
+        tosca_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/tosca_single_instance_wordpress_with_url_import.yaml")
+        tosca = ToscaTemplate(tosca_tpl)
+        self.assertTrue(tosca.topology_template.custom_defs)
+
+    def test_url_template_with_local_relpath_import(self):
+        tosca_tpl = ('https://raw.githubusercontent.com/openstack/'
+                     'tosca-parser/master/toscaparser/tests/data/'
+                     'tosca_single_instance_wordpress.yaml')
+        tosca = ToscaTemplate(tosca_tpl, None, False)
+        self.assertTrue(tosca.topology_template.custom_defs)
+
+    def test_url_template_with_local_abspath_import(self):
+        tosca_tpl = ('https://raw.githubusercontent.com/openstack/'
+                     'tosca-parser/master/toscaparser/tests/data/'
+                     'tosca_single_instance_wordpress_with_local_abspath_'
+                     'import.yaml')
+        self.assertRaises(exception.ValidationError, ToscaTemplate, tosca_tpl,
+                          None, False)
+        err_msg = (_('Absolute file name "/tmp/tosca-parser/toscaparser/tests'
+                     '/data/custom_types/wordpress.yaml" cannot be used in a '
+                     'URL-based input template "%(tpl)s".')
+                   % {'tpl': tosca_tpl})
+        exception.ExceptionCollector.assertExceptionMessage(ImportError,
+                                                            err_msg)
+
+    def test_url_template_with_url_import(self):
+        tosca_tpl = ('https://raw.githubusercontent.com/openstack/'
+                     'tosca-parser/master/toscaparser/tests/data/'
+                     'tosca_single_instance_wordpress_with_url_import.yaml')
+        tosca = ToscaTemplate(tosca_tpl, None, False)
+        self.assertTrue(tosca.topology_template.custom_defs)
+
+    def test_csar_parsing_wordpress(self):
+        csar_archive = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            'data/CSAR/csar_wordpress.zip')
+        self.assertTrue(ToscaTemplate(csar_archive))
+
+    def test_csar_parsing_elk_url_based(self):
+        csar_archive = ('https://github.com/openstack/tosca-parser/raw/master/'
+                        'toscaparser/tests/data/CSAR/csar_elk.zip')
+        self.assertTrue(ToscaTemplate(csar_archive, None, False))
+
+    def test_nested_imports_in_templates(self):
+        tosca_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/test_instance_nested_imports.yaml")
+        tosca = ToscaTemplate(tosca_tpl)
+        expected_custom_types = ['tosca.nodes.WebApplication.WordPress',
+                                 'test_namespace_prefix.Rsyslog',
+                                 'Test2ndRsyslogType',
+                                 'test_2nd_namespace_prefix.Rsyslog',
+                                 'tosca.nodes.SoftwareComponent.Logstash',
+                                 'tosca.nodes.SoftwareComponent.Rsyslog.'
+                                 'TestRsyslogType']
+        self.assertItemsEqual(tosca.topology_template.custom_defs.keys(),
+                              expected_custom_types)
+
+    def test_invalid_template_file(self):
+        template_file = 'invalid template file'
+        expected_msg = (_('"%s" is not a valid file.') % template_file)
+        self.assertRaises(
+            exception.ValidationError,
+            ToscaTemplate, template_file, None, False)
+        exception.ExceptionCollector.assertExceptionMessage(ValueError,
+                                                            expected_msg)
+
+    def test_multiple_validation_errors(self):
+        tosca_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/test_multiple_validation_errors.yaml")
+        self.assertRaises(exception.ValidationError, ToscaTemplate, tosca_tpl,
+                          None)
+        valid_versions = ', '.join(ToscaTemplate.VALID_TEMPLATE_VERSIONS)
+        err1_msg = (_('The template version "tosca_simple_yaml_1" is invalid. '
+                      'Valid versions are "%s".') % valid_versions)
+        exception.ExceptionCollector.assertExceptionMessage(
+            exception.InvalidTemplateVersion, err1_msg)
+
+        err2_msg = _('Import "custom_types/not_there.yaml" is not valid.')
+        exception.ExceptionCollector.assertExceptionMessage(
+            ImportError, err2_msg)
+
+        err3_msg = _('Type "tosca.nodes.WebApplication.WordPress" is not a '
+                     'valid type.')
+        exception.ExceptionCollector.assertExceptionMessage(
+            exception.InvalidTypeError, err3_msg)
+
+        err4_msg = _('Node template "wordpress" contains unknown field '
+                     '"requirement". Refer to the definition to verify valid '
+                     'values.')
+        exception.ExceptionCollector.assertExceptionMessage(
+            exception.UnknownFieldError, err4_msg)
+
+        err5_msg = _('\'Property "passwords" was not found in node template '
+                     '"mysql_database".\'')
+        exception.ExceptionCollector.assertExceptionMessage(
+            KeyError, err5_msg)
+
+        err6_msg = _('Template "mysql_dbms" is missing required field "type".')
+        exception.ExceptionCollector.assertExceptionMessage(
+            exception.MissingRequiredFieldError, err6_msg)
+
+        err7_msg = _('Node template "mysql_dbms" contains unknown field '
+                     '"type1". Refer to the definition to verify valid '
+                     'values.')
+        exception.ExceptionCollector.assertExceptionMessage(
+            exception.UnknownFieldError, err7_msg)
+
+        err8_msg = _('\'Node template "server1" was not found.\'')
+        exception.ExceptionCollector.assertExceptionMessage(
+            KeyError, err8_msg)
+
+        err9_msg = _('"relationship" used in template "webserver" is missing '
+                     'required field "type".')
+        exception.ExceptionCollector.assertExceptionMessage(
+            exception.MissingRequiredFieldError, err9_msg)
+
+    def test_invalid_section_names(self):
+        tosca_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/test_invalid_section_names.yaml")
+        self.assertRaises(exception.ValidationError, ToscaTemplate, tosca_tpl,
+                          None)
+        err1_msg = _('Template contains unknown field '
+                     '"tosca_definitions_versions". Refer to the definition '
+                     'to verify valid values.')
+        exception.ExceptionCollector.assertExceptionMessage(
+            exception.UnknownFieldError, err1_msg)
+
+        err2_msg = _('Template contains unknown field "descriptions". '
+                     'Refer to the definition to verify valid values.')
+        exception.ExceptionCollector.assertExceptionMessage(
+            exception.UnknownFieldError, err2_msg)
+
+        err3_msg = _('Template contains unknown field "import". Refer to '
+                     'the definition to verify valid values.')
+        exception.ExceptionCollector.assertExceptionMessage(
+            exception.UnknownFieldError, err3_msg)
+
+        err4_msg = _('Template contains unknown field "topology_templates". '
+                     'Refer to the definition to verify valid values.')
+        exception.ExceptionCollector.assertExceptionMessage(
+            exception.UnknownFieldError, err4_msg)
+
+    def test_csar_with_alternate_extenstion(self):
+        tosca_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/CSAR/csar_elk.csar")
+        tosca = ToscaTemplate(tosca_tpl)
+        self.assertTrue(tosca.topology_template.custom_defs)
+
+    def test_available_rel_tpls(self):
+        tosca_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/test_available_rel_tpls.yaml")
+        tosca = ToscaTemplate(tosca_tpl)
+        for node in tosca.nodetemplates:
+            for relationship, target in node.relationships.items():
+                try:
+                    target.relationships
+                except TypeError as error:
+                    self.fail(error)
+
+    def test_no_input(self):
+        self.assertRaises(exception.ValidationError, ToscaTemplate, None,
+                          None, False, None)
+        err_msg = (('No path or yaml_dict_tpl was provided. '
+                    'There is nothing to parse.'))
+        exception.ExceptionCollector.assertExceptionMessage(ValueError,
+                                                            err_msg)
+
+    def test_path_and_yaml_dict_tpl_input(self):
+        test_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/tosca_helloworld.yaml")
+
+        yaml_dict_tpl = toscaparser.utils.yamlparser.load_yaml(test_tpl)
+
+        tosca = ToscaTemplate(test_tpl, yaml_dict_tpl=yaml_dict_tpl)
+
+        self.assertEqual(tosca.version, "tosca_simple_yaml_1_0")
+
+    def test_yaml_dict_tpl_input(self):
+        test_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/tosca_helloworld.yaml")
+
+        yaml_dict_tpl = toscaparser.utils.yamlparser.load_yaml(test_tpl)
+
+        tosca = ToscaTemplate(yaml_dict_tpl=yaml_dict_tpl)
+
+        self.assertEqual(tosca.version, "tosca_simple_yaml_1_0")
+
+    def test_yaml_dict_tpl_with_params_and_url_import(self):
+        test_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/tosca_single_instance_wordpress_with_url_import.yaml")
+
+        yaml_dict_tpl = toscaparser.utils.yamlparser.load_yaml(test_tpl)
+
+        params = {'db_name': 'my_wordpress', 'db_user': 'my_db_user',
+                  'db_root_pwd': 'mypasswd'}
+
+        tosca = ToscaTemplate(parsed_params=params,
+                              yaml_dict_tpl=yaml_dict_tpl)
+
+        self.assertEqual(tosca.version, "tosca_simple_yaml_1_0")
+
+    def test_yaml_dict_tpl_with_rel_import(self):
+        test_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/tosca_single_instance_wordpress.yaml")
+
+        yaml_dict_tpl = toscaparser.utils.yamlparser.load_yaml(test_tpl)
+
+        self.assertRaises(exception.ValidationError, ToscaTemplate, None,
+                          None, False, yaml_dict_tpl)
+        err_msg = (_('Relative file name "custom_types/wordpress.yaml" '
+                     'cannot be used in a pre-parsed input template.'))
+        exception.ExceptionCollector.assertExceptionMessage(ImportError,
+                                                            err_msg)
+
+    def test_yaml_dict_tpl_with_fullpath_import(self):
+        test_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/tosca_single_instance_wordpress.yaml")
+
+        yaml_dict_tpl = toscaparser.utils.yamlparser.load_yaml(test_tpl)
+
+        yaml_dict_tpl['imports'] = [os.path.join(os.path.dirname(
+            os.path.abspath(__file__)), "data/custom_types/wordpress.yaml")]
+
+        params = {'db_name': 'my_wordpress', 'db_user': 'my_db_user',
+                  'db_root_pwd': 'mypasswd'}
+
+        tosca = ToscaTemplate(parsed_params=params,
+                              yaml_dict_tpl=yaml_dict_tpl)
+
+        self.assertEqual(tosca.version, "tosca_simple_yaml_1_0")
+
+    def test_policies_for_node_templates(self):
+        tosca_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/policies/tosca_policy_template.yaml")
+        tosca = ToscaTemplate(tosca_tpl)
+
+        for policy in tosca.topology_template.policies:
+            if policy.name == 'my_compute_placement_policy':
+                self.assertEqual('tosca.policies.Placement', policy.type)
+                self.assertEqual(['my_server_1', 'my_server_2'],
+                                 policy.targets)
+                self.assertEqual('node_templates', policy.get_targets_type())
+                for node in policy.targets_list:
+                    if node.name == 'my_server_1':
+                        '''Test property value'''
+                        props = node.get_properties()
+                        if props and 'mem_size' in props.keys():
+                            self.assertEqual(props['mem_size'].value,
+                                             '4096 MB')
+
+    def test_policies_for_groups(self):
+        tosca_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/policies/tosca_policy_template.yaml")
+        tosca = ToscaTemplate(tosca_tpl)
+
+        for policy in tosca.topology_template.policies:
+            if policy.name == 'my_groups_placement':
+                self.assertEqual('mycompany.mytypes.myScalingPolicy',
+                                 policy.type)
+                self.assertEqual(['webserver_group'], policy.targets)
+                self.assertEqual('groups', policy.get_targets_type())
+                group = policy.get_targets_list()[0]
+                for node in group.get_member_nodes():
+                    if node.name == 'my_server_2':
+                        '''Test property value'''
+                        props = node.get_properties()
+                        if props and 'mem_size' in props.keys():
+                            self.assertEqual(props['mem_size'].value,
+                                             '4096 MB')
+
+    def test_node_filter(self):
+        tosca_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/test_node_filter.yaml")
+        ToscaTemplate(tosca_tpl)
+
+    def test_attributes_inheritance(self):
+        tosca_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/test_attributes_inheritance.yaml")
+        ToscaTemplate(tosca_tpl)

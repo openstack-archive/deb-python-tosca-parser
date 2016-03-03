@@ -13,11 +13,12 @@
 
 import logging
 
+from toscaparser.common.exception import ExceptionCollector
 from toscaparser.common.exception import MissingRequiredFieldError
 from toscaparser.common.exception import UnknownFieldError
 from toscaparser.dataentity import DataEntity
 from toscaparser.elements.constraints import Schema
-from toscaparser.elements.entitytype import EntityType
+from toscaparser.elements.entity_type import EntityType
 from toscaparser.utils.gettextutils import _
 
 
@@ -56,14 +57,16 @@ class Input(object):
             self._validate_value(value)
 
     def _validate_field(self):
-        for name in self.schema:
+        for name in self.schema.schema:
             if name not in self.INPUTFIELD:
-                raise UnknownFieldError(what='Input %s' % self.name,
-                                        field=name)
+                ExceptionCollector.appendException(
+                    UnknownFieldError(what='Input "%s"' % self.name,
+                                      field=name))
 
     def validate_type(self, input_type):
         if input_type not in Schema.PROPERTY_TYPES:
-            raise ValueError(_('Invalid type %s') % type)
+            ExceptionCollector.appendException(
+                ValueError(_('Invalid type "%s".') % type))
 
     def _validate_value(self, value):
         tosca = EntityType.TOSCA_DEF
@@ -86,25 +89,26 @@ class Output(object):
 
     @property
     def description(self):
-        return self.attrs[self.DESCRIPTION]
+        return self.attrs.get(self.DESCRIPTION)
 
     @property
     def value(self):
-        return self.attrs[self.VALUE]
+        return self.attrs.get(self.VALUE)
 
     def validate(self):
         self._validate_field()
 
     def _validate_field(self):
         if not isinstance(self.attrs, dict):
-            raise MissingRequiredFieldError(what='Output %s' % self.name,
-                                            required=self.VALUE)
-        try:
-            self.value
-        except KeyError:
-            raise MissingRequiredFieldError(what='Output %s' % self.name,
-                                            required=self.VALUE)
+            ExceptionCollector.appendException(
+                MissingRequiredFieldError(what='Output "%s"' % self.name,
+                                          required=self.VALUE))
+        if self.value is None:
+            ExceptionCollector.appendException(
+                MissingRequiredFieldError(what='Output "%s"' % self.name,
+                                          required=self.VALUE))
         for name in self.attrs:
             if name not in self.OUTPUTFIELD:
-                raise UnknownFieldError(what='Output %s' % self.name,
-                                        field=name)
+                ExceptionCollector.appendException(
+                    UnknownFieldError(what='Output "%s"' % self.name,
+                                      field=name))

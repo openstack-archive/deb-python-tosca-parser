@@ -12,7 +12,14 @@
 
 import codecs
 from collections import OrderedDict
+
+from six.moves import urllib
 import yaml
+
+from toscaparser.common.exception import ExceptionCollector
+from toscaparser.common.exception import URLException
+from toscaparser.utils.gettextutils import _
+
 
 if hasattr(yaml, 'CSafeLoader'):
     yaml_loader = yaml.CSafeLoader
@@ -20,16 +27,34 @@ else:
     yaml_loader = yaml.SafeLoader
 
 
-def load_yaml(path):
-    with codecs.open(path, encoding='utf-8', errors='strict') as f:
-        return yaml.load(f.read(), Loader=yaml_loader)
+def load_yaml(path, a_file=True):
+    f = None
+    try:
+        f = codecs.open(path, encoding='utf-8', errors='strict') if a_file \
+            else urllib.request.urlopen(path)
+    except urllib.error.URLError as e:
+        if hasattr(e, 'reason'):
+            msg = (_('Failed to reach server "%(path)s". Reason is: '
+                     '%(reason)s.')
+                   % {'path': path, 'reason': e.reason})
+            ExceptionCollector.appendException(URLException(what=msg))
+            return
+        elif hasattr(e, 'code'):
+            msg = (_('The server "%(path)s" couldn\'t fulfill the request. '
+                     'Error code: "%(code)s".')
+                   % {'path': path, 'code': e.code})
+            ExceptionCollector.appendException(URLException(what=msg))
+            return
+    except Exception as e:
+        raise
+    return yaml.load(f.read(), Loader=yaml_loader)
 
 
 def simple_parse(tmpl_str):
     try:
         tpl = yaml.load(tmpl_str, Loader=yaml_loader)
     except yaml.YAMLError as yea:
-        raise ValueError(yea)
+        ExceptionCollector.appendException(ValueError(yea))
     else:
         if tpl is None:
             tpl = {}
@@ -54,7 +79,7 @@ def simple_ordered_parse(tmpl_str):
     try:
         tpl = ordered_load(tmpl_str)
     except yaml.YAMLError as yea:
-        raise ValueError(yea)
+        ExceptionCollector.appendException(ValueError(yea))
     else:
         if tpl is None:
             tpl = {}

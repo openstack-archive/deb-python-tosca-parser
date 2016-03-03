@@ -14,10 +14,11 @@ import collections
 import datetime
 import re
 
+import toscaparser
+from toscaparser.common.exception import ExceptionCollector
 from toscaparser.common.exception import InvalidSchemaError
 from toscaparser.common.exception import ValidationError
 from toscaparser.elements import scalarunit
-from toscaparser.functions import is_function
 from toscaparser.utils.gettextutils import _
 
 
@@ -52,14 +53,16 @@ class Schema(collections.Mapping):
     def __init__(self, name, schema_dict):
         self.name = name
         if not isinstance(schema_dict, collections.Mapping):
-            msg = _("Schema %(pname)s must be a dict.") % dict(pname=name)
-            raise InvalidSchemaError(message=msg)
+            msg = (_('Schema definition of "%(pname)s" must be a dict.')
+                   % dict(pname=name))
+            ExceptionCollector.appendException(InvalidSchemaError(message=msg))
 
         try:
             schema_dict['type']
         except KeyError:
-            msg = _("Schema %(pname)s must have type.") % dict(pname=name)
-            raise InvalidSchemaError(message=msg)
+            msg = (_('Schema definition of "%(pname)s" must have a "type" '
+                     'attribute.') % dict(pname=name))
+            ExceptionCollector.appendException(InvalidSchemaError(message=msg))
 
         self.schema = schema_dict
         self._len = None
@@ -130,13 +133,15 @@ class Constraint(object):
 
         if(not isinstance(constraint, collections.Mapping) or
            len(constraint) != 1):
-            raise InvalidSchemaError(message=_('Invalid constraint schema.'))
+            ExceptionCollector.appendException(
+                InvalidSchemaError(message=_('Invalid constraint schema.')))
 
         for type in constraint.keys():
             ConstraintClass = get_constraint_class(type)
             if not ConstraintClass:
-                msg = _('Invalid constraint type "%s".') % type
-                raise InvalidSchemaError(message=msg)
+                msg = _('Invalid property "%s".') % type
+                ExceptionCollector.appendException(
+                    InvalidSchemaError(message=msg))
 
         return ConstraintClass(property_name, property_type, constraint)
 
@@ -149,11 +154,11 @@ class Constraint(object):
             self.constraint_value = self._get_scalarunit_constraint_value()
         # check if constraint is valid for property type
         if property_type not in self.valid_prop_types:
-            msg = _('Constraint type "%(ctype)s" is not valid '
-                    'for data type "%(dtype)s".') % dict(
+            msg = _('Property "%(ctype)s" is not valid for data type '
+                    '"%(dtype)s".') % dict(
                         ctype=self.constraint_key,
                         dtype=property_type)
-            raise InvalidSchemaError(message=msg)
+            ExceptionCollector.appendException(InvalidSchemaError(message=msg))
 
     def _get_scalarunit_constraint_value(self):
         if self.property_type in scalarunit.ScalarUnit.SCALAR_UNIT_TYPES:
@@ -167,7 +172,7 @@ class Constraint(object):
                     get_num_from_scalar_unit())
 
     def _err_msg(self, value):
-        return _('Property %s could not be validated.') % self.property_name
+        return _('Property "%s" could not be validated.') % self.property_name
 
     def validate(self, value):
         self.value_msg = value
@@ -175,7 +180,8 @@ class Constraint(object):
             value = scalarunit.get_scalarunit_value(self.property_type, value)
         if not self._is_valid(value):
             err_msg = self._err_msg(value)
-            raise ValidationError(message=err_msg)
+            ExceptionCollector.appendException(
+                ValidationError(message=err_msg))
 
 
 class Equal(Constraint):
@@ -196,7 +202,8 @@ class Equal(Constraint):
         return False
 
     def _err_msg(self, value):
-        return (_('%(pname)s: %(pvalue)s is not equal to "%(cvalue)s".') %
+        return (_('The value "%(pvalue)s" of property "%(pname)s" is not '
+                  'equal to "%(cvalue)s".') %
                 dict(pname=self.property_name,
                      pvalue=self.value_msg,
                      cvalue=self.constraint_value_msg))
@@ -222,8 +229,9 @@ class GreaterThan(Constraint):
         super(GreaterThan, self).__init__(property_name, property_type,
                                           constraint)
         if not isinstance(constraint[self.GREATER_THAN], self.valid_types):
-            raise InvalidSchemaError(message=_('greater_than must '
-                                               'be comparable.'))
+            ExceptionCollector.appendException(
+                InvalidSchemaError(message=_('The property "greater_than" '
+                                             'expects comparable values.')))
 
     def _is_valid(self, value):
         if value > self.constraint_value:
@@ -232,7 +240,8 @@ class GreaterThan(Constraint):
         return False
 
     def _err_msg(self, value):
-        return (_('%(pname)s: %(pvalue)s must be greater than "%(cvalue)s".') %
+        return (_('The value "%(pvalue)s" of property "%(pname)s" must be '
+                  'greater than "%(cvalue)s".') %
                 dict(pname=self.property_name,
                      pvalue=self.value_msg,
                      cvalue=self.constraint_value_msg))
@@ -258,17 +267,20 @@ class GreaterOrEqual(Constraint):
         super(GreaterOrEqual, self).__init__(property_name, property_type,
                                              constraint)
         if not isinstance(self.constraint_value, self.valid_types):
-            raise InvalidSchemaError(message=_('greater_or_equal must '
-                                               'be comparable.'))
+            ExceptionCollector.appendException(
+                InvalidSchemaError(message=_('The property '
+                                             '"greater_or_equal" expects '
+                                             'comparable values.')))
 
     def _is_valid(self, value):
-        if is_function(value) or value >= self.constraint_value:
+        if toscaparser.functions.is_function(value) or \
+           value >= self.constraint_value:
             return True
         return False
 
     def _err_msg(self, value):
-        return (_('%(pname)s: %(pvalue)s must be greater or equal '
-                  'to "%(cvalue)s".') %
+        return (_('The value "%(pvalue)s" of property "%(pname)s" must be '
+                  'greater than or equal to "%(cvalue)s".') %
                 dict(pname=self.property_name,
                      pvalue=self.value_msg,
                      cvalue=self.constraint_value_msg))
@@ -294,8 +306,9 @@ class LessThan(Constraint):
         super(LessThan, self).__init__(property_name, property_type,
                                        constraint)
         if not isinstance(self.constraint_value, self.valid_types):
-            raise InvalidSchemaError(message=_('less_than must '
-                                               'be comparable.'))
+            ExceptionCollector.appendException(
+                InvalidSchemaError(message=_('The property "less_than" '
+                                             'expects comparable values.')))
 
     def _is_valid(self, value):
         if value < self.constraint_value:
@@ -304,7 +317,8 @@ class LessThan(Constraint):
         return False
 
     def _err_msg(self, value):
-        return (_('%(pname)s: %(pvalue)s must be less than "%(cvalue)s".') %
+        return (_('The value "%(pvalue)s" of property "%(pname)s" must be '
+                  'less than "%(cvalue)s".') %
                 dict(pname=self.property_name,
                      pvalue=self.value_msg,
                      cvalue=self.constraint_value_msg))
@@ -330,8 +344,9 @@ class LessOrEqual(Constraint):
         super(LessOrEqual, self).__init__(property_name, property_type,
                                           constraint)
         if not isinstance(self.constraint_value, self.valid_types):
-            raise InvalidSchemaError(message=_('less_or_equal must '
-                                               'be comparable.'))
+            ExceptionCollector.appendException(
+                InvalidSchemaError(message=_('The property "less_or_equal" '
+                                             'expects comparable values.')))
 
     def _is_valid(self, value):
         if value <= self.constraint_value:
@@ -340,8 +355,8 @@ class LessOrEqual(Constraint):
         return False
 
     def _err_msg(self, value):
-        return (_('%(pname)s: %(pvalue)s must be less or '
-                  'equal to "%(cvalue)s".') %
+        return (_('The value "%(pvalue)s" of property "%(pname)s" must be '
+                  'less than or equal to "%(cvalue)s".') %
                 dict(pname=self.property_name,
                      pvalue=self.value_msg,
                      cvalue=self.constraint_value_msg))
@@ -367,12 +382,15 @@ class InRange(Constraint):
         super(InRange, self).__init__(property_name, property_type, constraint)
         if(not isinstance(self.constraint_value, collections.Sequence) or
            (len(constraint[self.IN_RANGE]) != 2)):
-            raise InvalidSchemaError(message=_('in_range must be a list.'))
+            ExceptionCollector.appendException(
+                InvalidSchemaError(message=_('The property "in_range" '
+                                             'expects a list.')))
 
         for value in self.constraint_value:
             if not isinstance(value, self.valid_types):
-                raise InvalidSchemaError(_('in_range value must '
-                                           'be comparable.'))
+                ExceptionCollector.appendException(
+                    InvalidSchemaError(_('The property "in_range" expects '
+                                         'comparable values.')))
 
         self.min = self.constraint_value[0]
         self.max = self.constraint_value[1]
@@ -386,8 +404,8 @@ class InRange(Constraint):
         return True
 
     def _err_msg(self, value):
-        return (_('%(pname)s: %(pvalue)s is out of range '
-                  '(min:%(vmin)s, max:%(vmax)s).') %
+        return (_('The value "%(pvalue)s" of property "%(pname)s" is out of '
+                  'range "(min:%(vmin)s, max:%(vmax)s)".') %
                 dict(pname=self.property_name,
                      pvalue=self.value_msg,
                      vmin=self.constraint_value_msg[0],
@@ -408,7 +426,9 @@ class ValidValues(Constraint):
         super(ValidValues, self).__init__(property_name, property_type,
                                           constraint)
         if not isinstance(self.constraint_value, collections.Sequence):
-            raise InvalidSchemaError(message=_('valid_values must be a list.'))
+            ExceptionCollector.appendException(
+                InvalidSchemaError(message=_('The property "valid_values" '
+                                             'expects a list.')))
 
     def _is_valid(self, value):
         if isinstance(value, list):
@@ -417,8 +437,8 @@ class ValidValues(Constraint):
 
     def _err_msg(self, value):
         allowed = '[%s]' % ', '.join(str(a) for a in self.constraint_value)
-        return (_('%(pname)s: %(pvalue)s is not an valid '
-                  'value "%(cvalue)s".') %
+        return (_('The value "%(pvalue)s" of property "%(pname)s" is not '
+                  'valid. Expected a value from "%(cvalue)s".') %
                 dict(pname=self.property_name,
                      pvalue=value,
                      cvalue=allowed))
@@ -439,7 +459,9 @@ class Length(Constraint):
     def __init__(self, property_name, property_type, constraint):
         super(Length, self).__init__(property_name, property_type, constraint)
         if not isinstance(self.constraint_value, self.valid_types):
-            raise InvalidSchemaError(message=_('length must be integer.'))
+            ExceptionCollector.appendException(
+                InvalidSchemaError(message=_('The property "length" expects '
+                                             'an integer.')))
 
     def _is_valid(self, value):
         if isinstance(value, str) and len(value) == self.constraint_value:
@@ -448,8 +470,8 @@ class Length(Constraint):
         return False
 
     def _err_msg(self, value):
-        return (_('length of %(pname)s: %(pvalue)s must be equal '
-                  'to "%(cvalue)s".') %
+        return (_('Length of value "%(pvalue)s" of property "%(pname)s" '
+                  'must be equal to "%(cvalue)s".') %
                 dict(pname=self.property_name,
                      pvalue=value,
                      cvalue=self.constraint_value))
@@ -465,23 +487,26 @@ class MinLength(Constraint):
 
     valid_types = (int, )
 
-    valid_prop_types = (Schema.STRING, )
+    valid_prop_types = (Schema.STRING, Schema.MAP)
 
     def __init__(self, property_name, property_type, constraint):
         super(MinLength, self).__init__(property_name, property_type,
                                         constraint)
         if not isinstance(self.constraint_value, self.valid_types):
-            raise InvalidSchemaError(message=_('min_length must be integer.'))
+            ExceptionCollector.appendException(
+                InvalidSchemaError(message=_('The property "min_length" '
+                                             'expects an integer.')))
 
     def _is_valid(self, value):
-        if isinstance(value, str) and len(value) >= self.constraint_value:
+        if ((isinstance(value, str) or isinstance(value, dict)) and
+           len(value) >= self.constraint_value):
             return True
 
         return False
 
     def _err_msg(self, value):
-        return (_('length of %(pname)s: %(pvalue)s must be '
-                  'at least "%(cvalue)s".') %
+        return (_('Length of value "%(pvalue)s" of property "%(pname)s" '
+                  'must be at least "%(cvalue)s".') %
                 dict(pname=self.property_name,
                      pvalue=value,
                      cvalue=self.constraint_value))
@@ -497,23 +522,26 @@ class MaxLength(Constraint):
 
     valid_types = (int, )
 
-    valid_prop_types = (Schema.STRING, )
+    valid_prop_types = (Schema.STRING, Schema.MAP)
 
     def __init__(self, property_name, property_type, constraint):
         super(MaxLength, self).__init__(property_name, property_type,
                                         constraint)
         if not isinstance(self.constraint_value, self.valid_types):
-            raise InvalidSchemaError(message=_('max_length must be integer.'))
+            ExceptionCollector.appendException(
+                InvalidSchemaError(message=_('The property "max_length" '
+                                             'expects an integer.')))
 
     def _is_valid(self, value):
-        if isinstance(value, str) and len(value) <= self.constraint_value:
+        if ((isinstance(value, str) or isinstance(value, dict)) and
+           len(value) <= self.constraint_value):
             return True
 
         return False
 
     def _err_msg(self, value):
-        return (_('length of %(pname)s: %(pvalue)s must be no greater '
-                  'than "%(cvalue)s".') %
+        return (_('Length of value "%(pvalue)s" of property "%(pname)s" '
+                  'must be no greater than "%(cvalue)s".') %
                 dict(pname=self.property_name,
                      pvalue=value,
                      cvalue=self.constraint_value))
@@ -535,7 +563,9 @@ class Pattern(Constraint):
     def __init__(self, property_name, property_type, constraint):
         super(Pattern, self).__init__(property_name, property_type, constraint)
         if not isinstance(self.constraint_value, self.valid_types):
-            raise InvalidSchemaError(message=_('pattern must be string.'))
+            ExceptionCollector.appendException(
+                InvalidSchemaError(message=_('The property "pattern" '
+                                             'expects a string.')))
         self.match = re.compile(self.constraint_value).match
 
     def _is_valid(self, value):
@@ -543,8 +573,8 @@ class Pattern(Constraint):
         return match is not None and match.end() == len(value)
 
     def _err_msg(self, value):
-        return (_('%(pname)s: "%(pvalue)s" does not match '
-                  'pattern "%(cvalue)s".') %
+        return (_('The value "%(pvalue)s" of property "%(pname)s" does not '
+                  'match pattern "%(cvalue)s".') %
                 dict(pname=self.property_name,
                      pvalue=value,
                      cvalue=self.constraint_value))

@@ -16,6 +16,7 @@ from toscaparser.common import exception
 from toscaparser import functions
 from toscaparser.tests.base import TestCase
 from toscaparser.tosca_template import ToscaTemplate
+from toscaparser.utils.gettextutils import _
 
 
 class IntrinsicFunctionsTest(TestCase):
@@ -23,11 +24,14 @@ class IntrinsicFunctionsTest(TestCase):
     tosca_tpl = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "data/tosca_single_instance_wordpress.yaml")
-    tosca = ToscaTemplate(tosca_tpl)
+    params = {'db_name': 'my_wordpress', 'db_user': 'my_db_user'}
+    tosca = ToscaTemplate(tosca_tpl, parsed_params=params)
 
-    def _get_node(self, node_name):
+    def _get_node(self, node_name, tosca=None):
+        if tosca is None:
+            tosca = self.tosca
         return [
-            node for node in self.tosca.nodetemplates
+            node for node in tosca.nodetemplates
             if node.name == node_name][0]
 
     def _get_operation(self, interfaces, operation):
@@ -39,43 +43,39 @@ class IntrinsicFunctionsTest(TestCase):
         return [prop.value for prop in node_template.get_properties_objects()
                 if prop.name == property_name][0]
 
-    def test_get_property(self):
-        TestCase.skip(self, 'bug #1440247')
-        mysql_dbms = self._get_node('mysql_dbms')
-        operation = self._get_operation(mysql_dbms.interfaces, 'configure')
-        db_root_password = operation.inputs['db_root_password']
-        self.assertTrue(isinstance(db_root_password, functions.GetProperty))
-        result = db_root_password.result()
-        self.assertTrue(isinstance(result, functions.GetInput))
+    def _get_inputs_dict(self):
+        inputs = {}
+        for input in self.tosca.inputs:
+            inputs[input.name] = input.default
+        return inputs
 
-    def test_get_requirement_property(self):
-        TestCase.skip(self, 'bug #1440247')
+    def _get_input(self, name):
+        self._get_inputs_dict()[name]
+
+    def test_get_property(self):
         wordpress = self._get_node('wordpress')
         operation = self._get_operation(wordpress.interfaces, 'configure')
-        wp_db_port = operation.inputs['wp_db_port']
-        self.assertTrue(isinstance(wp_db_port, functions.GetProperty))
-        result = wp_db_port.result()
-        self.assertTrue(isinstance(result, functions.GetInput))
-        self.assertEqual('db_port', result.input_name)
+        wp_db_password = operation.inputs['wp_db_password']
+        self.assertTrue(isinstance(wp_db_password, functions.GetProperty))
+        result = wp_db_password.result()
+        self.assertEqual('wp_pass', result)
 
-    def test_get_capability_property(self):
-        TestCase.skip(self, 'bug #1440247')
-        mysql_database = self._get_node('mysql_database')
-        operation = self._get_operation(mysql_database.interfaces, 'configure')
-        db_port = operation.inputs['db_port']
-        self.assertTrue(isinstance(db_port, functions.GetProperty))
-        result = db_port.result()
-        self.assertTrue(isinstance(result, functions.GetInput))
-        self.assertEqual('db_port', result.input_name)
+    def test_get_property_with_input_param(self):
+        wordpress = self._get_node('wordpress')
+        operation = self._get_operation(wordpress.interfaces, 'configure')
+        wp_db_user = operation.inputs['wp_db_user']
+        self.assertTrue(isinstance(wp_db_user, functions.GetProperty))
+        result = wp_db_user.result()
+        self.assertEqual('my_db_user', result)
 
     def test_unknown_capability_property(self):
-        err = self.assertRaises(
+        self.assertRaises(exception.ValidationError, self._load_template,
+                          'functions/test_unknown_capability_property.yaml')
+        exception.ExceptionCollector.assertExceptionMessage(
             KeyError,
-            self._load_template,
-            'functions/test_unknown_capability_property.yaml')
-        self.assertIn("'unknown'", six.text_type(err))
-        self.assertIn("'database_endpoint'", six.text_type(err))
-        self.assertIn("'database'", six.text_type(err))
+            _('\'Property "unknown" was not found in capability '
+              '"database_endpoint" of node template "database" referenced '
+              'from node template "database".\''))
 
     def test_get_input_in_properties(self):
         mysql_dbms = self._get_node('mysql_dbms')
@@ -87,23 +87,28 @@ class IntrinsicFunctionsTest(TestCase):
             expected_inputs.remove(prop.value.input_name)
         self.assertListEqual(expected_inputs, [])
 
-    def test_get_input_in_interface(self):
-        TestCase.skip(self, 'bug #1440247')
-        mysql_dbms = self._get_node('mysql_dbms')
-        operation = self._get_operation(mysql_dbms.interfaces, 'configure')
-        db_user = operation.inputs['db_user']
-        self.assertTrue(isinstance(db_user, functions.GetInput))
-
     def test_get_input_validation(self):
-        self.assertRaises(exception.UnknownInputError,
-                          self._load_template,
-                          'functions/test_unknown_input_in_property.yaml')
-        self.assertRaises(exception.UnknownInputError,
-                          self._load_template,
-                          'functions/test_unknown_input_in_interface.yaml')
-        self.assertRaises(ValueError,
-                          self._load_template,
-                          'functions/test_invalid_function_signature.yaml')
+        self.assertRaises(
+            exception.ValidationError, self._load_template,
+            'functions/test_unknown_input_in_property.yaml')
+        exception.ExceptionCollector.assertExceptionMessage(
+            exception.UnknownInputError,
+            _('Unknown input "objectstore_name".'))
+
+        self.assertRaises(
+            exception.ValidationError, self._load_template,
+            'functions/test_unknown_input_in_interface.yaml')
+        exception.ExceptionCollector.assertExceptionMessage(
+            exception.UnknownInputError,
+            _('Unknown input "image_id".'))
+
+        self.assertRaises(
+            exception.ValidationError, self._load_template,
+            'functions/test_invalid_function_signature.yaml')
+        exception.ExceptionCollector.assertExceptionMessage(
+            ValueError,
+            _('Expected one argument for function "get_input" but received '
+              '"[\'cpus\', \'cpus\']".'))
 
     def test_get_input_default_value_result(self):
         mysql_dbms = self._get_node('mysql_dbms')
@@ -112,6 +117,35 @@ class IntrinsicFunctionsTest(TestCase):
         dbms_root_password = self._get_property(mysql_dbms,
                                                 'root_password')
         self.assertIsNone(dbms_root_password.result())
+
+    def test_get_property_with_host(self):
+        tosca_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/functions/test_get_property_with_host.yaml")
+        mysql_database = self._get_node('mysql_database',
+                                        ToscaTemplate(tosca_tpl))
+        operation = self._get_operation(mysql_database.interfaces, 'configure')
+        db_port = operation.inputs['db_port']
+        self.assertTrue(isinstance(db_port, functions.GetProperty))
+        result = db_port.result()
+        self.assertEqual(3306, result)
+        test = operation.inputs['test']
+        self.assertTrue(isinstance(test, functions.GetProperty))
+        result = test.result()
+        self.assertEqual(1, result)
+
+    def test_get_property_with_nested_params(self):
+        tosca_tpl = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "data/functions/tosca_nested_property_names_indexes.yaml")
+        webserver = self._get_node('wordpress', ToscaTemplate(tosca_tpl))
+        operation = self._get_operation(webserver.interfaces, 'configure')
+        wp_endpoint_prot = operation.inputs['wp_endpoint_protocol']
+        self.assertTrue(isinstance(wp_endpoint_prot, functions.GetProperty))
+        self.assertEqual('tcp', wp_endpoint_prot.result())
+        wp_list_prop = operation.inputs['wp_list_prop']
+        self.assertTrue(isinstance(wp_list_prop, functions.GetProperty))
+        self.assertEqual(3, wp_list_prop.result())
 
 
 class GetAttributeTest(TestCase):
@@ -132,7 +166,8 @@ class GetAttributeTest(TestCase):
                          website_url_output.value.attribute_name)
 
     def test_get_attribute_invalid_args(self):
-        expected_msg = 'Expected arguments: node-template-name, attribute-name'
+        expected_msg = _('Expected arguments: "node-template-name", '
+                         '"attribute-name"')
         err = self.assertRaises(ValueError,
                                 functions.get_function, None, None,
                                 {'get_attribute': []})
@@ -147,19 +182,21 @@ class GetAttributeTest(TestCase):
         self.assertIn(expected_msg, six.text_type(err))
 
     def test_get_attribute_unknown_node_template_name(self):
-        err = self.assertRaises(
-            KeyError,
-            self._load_template,
+        self.assertRaises(
+            exception.ValidationError, self._load_template,
             'functions/test_get_attribute_unknown_node_template_name.yaml')
-        self.assertIn('unknown_node_template', six.text_type(err))
+        exception.ExceptionCollector.assertExceptionMessage(
+            KeyError,
+            _('\'Node template "unknown_node_template" was not found.\''))
 
     def test_get_attribute_unknown_attribute(self):
-        err = self.assertRaises(
-            KeyError,
-            self._load_template,
+        self.assertRaises(
+            exception.ValidationError, self._load_template,
             'functions/test_get_attribute_unknown_attribute_name.yaml')
-        self.assertIn('unknown_attribute', six.text_type(err))
-        self.assertIn('server', six.text_type(err))
+        exception.ExceptionCollector.assertExceptionMessage(
+            KeyError,
+            _('\'Attribute "unknown_attribute" was not found in node template '
+              '"server".\''))
 
     def test_get_attribute_host_keyword(self):
         tpl = self._load_template(
@@ -179,21 +216,20 @@ class GetAttributeTest(TestCase):
         assert_get_attribute_host_functionality('database')
 
     def test_get_attribute_host_not_found(self):
-        err = self.assertRaises(
-            ValueError,
-            self._load_template,
+        self.assertRaises(
+            exception.ValidationError, self._load_template,
             'functions/test_get_attribute_host_not_found.yaml')
-        self.assertIn(
-            "get_attribute HOST keyword is used in 'server' node template but "
-            "tosca.relationships.HostedOn was not found in relationship chain",
-            six.text_type(err))
+        exception.ExceptionCollector.assertExceptionMessage(
+            ValueError,
+            _('"get_attribute: [ HOST, ... ]" was used in node template '
+              '"server" but "tosca.relationships.HostedOn" was not found in '
+              'the relationship chain.'))
 
     def test_get_attribute_illegal_host_in_outputs(self):
-        err = self.assertRaises(
-            ValueError,
-            self._load_template,
+        self.assertRaises(
+            exception.ValidationError, self._load_template,
             'functions/test_get_attribute_illegal_host_in_outputs.yaml')
-        self.assertIn(
-            "get_attribute HOST keyword is not allowed within the outputs "
-            "section of the TOSCA template",
-            six.text_type(err))
+        exception.ExceptionCollector.assertExceptionMessage(
+            ValueError,
+            _('"get_attribute: [ HOST, ... ]" is not allowed in "outputs" '
+              'section of the TOSCA template.'))

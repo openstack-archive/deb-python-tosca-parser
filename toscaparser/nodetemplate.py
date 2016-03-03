@@ -13,8 +13,13 @@
 
 import logging
 
+from toscaparser.common.exception import ExceptionCollector
+from toscaparser.common.exception import InvalidPropertyValueError
+from toscaparser.common.exception import MissingRequiredFieldError
 from toscaparser.common.exception import TypeMismatchError
 from toscaparser.common.exception import UnknownFieldError
+from toscaparser.common.exception import ValidationError
+from toscaparser.dataentity import DataEntity
 from toscaparser.elements.interfaces import CONFIGURE
 from toscaparser.elements.interfaces import CONFIGURE_SHORTNAME
 from toscaparser.elements.interfaces import InterfacesDef
@@ -71,43 +76,63 @@ class NodeTemplate(EntityTemplate):
         if node:
             # TODO(spzala) implement look up once Glance meta data is available
             # to find a matching TOSCA node using the TOSCA types
-            msg = _('Lookup by TOSCA types are not supported. '
-                    'Requirement for %s can not be full-filled.') % self.name
+            msg = _('Lookup by TOSCA types is not supported. '
+                    'Requirement for "%s" can not be full-filled.') % self.name
             if (node in list(self.type_definition.TOSCA_DEF.keys())
                or node in self.custom_def):
-                    raise NotImplementedError(msg)
+                ExceptionCollector.appendException(NotImplementedError(msg))
+                return
+
+            if node not in self.templates:
+                ExceptionCollector.appendException(
+                    KeyError(_('Node template "%s" was not found.') % node))
+                return
+
             related_tpl = NodeTemplate(node, self.templates, self.custom_def)
             relationship = value.get('relationship') \
                 if isinstance(value, dict) else None
             # check if it's type has relationship defined
             if not relationship:
                 parent_reqs = self.type_definition.get_all_requirements()
-                for key in req.keys():
-                    for req_dict in parent_reqs:
-                        if key in req_dict.keys():
-                            relationship = (req_dict.get(key).
-                                            get('relationship'))
-                            break
+                if parent_reqs is None:
+                    ExceptionCollector.appendException(
+                        ValidationError(message='parent_req is ' +
+                                        str(parent_reqs)))
+                else:
+                    for key in req.keys():
+                        for req_dict in parent_reqs:
+                            if key in req_dict.keys():
+                                relationship = (req_dict.get(key).
+                                                get('relationship'))
+                                break
             if relationship:
                 found_relationship_tpl = False
                 # apply available relationship templates if found
-                for tpl in self.available_rel_tpls:
-                    if tpl.name == relationship:
-                        rtype = RelationshipType(tpl.type, None,
-                                                 self.custom_def)
-                        explicit_relation[rtype] = related_tpl
-                        self.relationship_tpl.append(tpl)
-                        found_relationship_tpl = True
+                if self.available_rel_tpls:
+                    for tpl in self.available_rel_tpls:
+                        if tpl.name == relationship:
+                            rtype = RelationshipType(tpl.type, None,
+                                                     self.custom_def)
+                            explicit_relation[rtype] = related_tpl
+                            self.relationship_tpl.append(tpl)
+                            found_relationship_tpl = True
                 # create relationship template object.
                 rel_prfx = self.type_definition.RELATIONSHIP_PREFIX
                 if not found_relationship_tpl:
                     if isinstance(relationship, dict):
                         relationship = relationship.get('type')
-                        if self.available_rel_types and \
-                           relationship in self.available_rel_types.keys():
-                            pass
-                        elif not relationship.startswith(rel_prfx):
-                            relationship = rel_prfx + relationship
+                        if relationship:
+                            if self.available_rel_types and \
+                               relationship in self.available_rel_types.keys():
+                                pass
+                            elif not relationship.startswith(rel_prfx):
+                                relationship = rel_prfx + relationship
+                        else:
+                            ExceptionCollector.appendException(
+                                MissingRequiredFieldError(
+                                    what=_('"relationship" used in template '
+                                           '"%s"') % related_tpl.name,
+                                    required=self.TYPE))
                     for rtype in self.type_definition.relationship.keys():
                         if rtype.type == relationship:
                             explicit_relation[rtype] = related_tpl
@@ -132,7 +157,7 @@ class NodeTemplate(EntityTemplate):
     def _add_relationship_template(self, requirement, rtype):
         req = requirement.copy()
         req['type'] = rtype
-        tpl = RelationshipTemplate(req, rtype, None)
+        tpl = RelationshipTemplate(req, rtype, self.custom_def)
         self.relationship_tpl.append(tpl)
 
     def get_relationship_template(self):
@@ -173,22 +198,44 @@ class NodeTemplate(EntityTemplate):
                                                   self.entity_tpl)
         if requires:
             if not isinstance(requires, list):
-                raise TypeMismatchError(
-                    what='Requirements of template %s' % self.name,
-                    type='list')
+                ExceptionCollector.appendException(
+                    TypeMismatchError(
+                        what='"requirements" of template "%s"' % self.name,
+                        type='list'))
             for req in requires:
                 for r1, value in req.items():
                     if isinstance(value, dict):
                         self._validate_requirements_keys(value)
+                        self._validate_requirements_properties(value)
                         allowed_reqs.append(r1)
-                self._common_validate_field(req, allowed_reqs, 'Requirements')
+                self._common_validate_field(req, allowed_reqs, 'requirements')
+
+    def _validate_requirements_properties(self, requirements):
+        # TODO(anyone): Only occurrences property of the requirements is
+        # validated here. Validation of other requirement properties are being
+        # validated in different files. Better to keep all the requirements
+        # properties validation here.
+        for key, value in requirements.items():
+            if key == 'occurrences':
+                self._validate_occurrences(value)
+                break
+
+    def _validate_occurrences(self, occurrences):
+        DataEntity.validate_datatype('list', occurrences)
+        for value in occurrences:
+            DataEntity.validate_datatype('integer', value)
+        if len(occurrences) != 2 or not (0 <= occurrences[0] <= occurrences[1]) \
+            or occurrences[1] == 0:
+            ExceptionCollector.appendException(
+                InvalidPropertyValueError(what=(occurrences)))
 
     def _validate_requirements_keys(self, requirement):
         for key in requirement.keys():
             if key not in self.REQUIREMENTS_SECTION:
-                raise UnknownFieldError(
-                    what='Requirements of template %s' % self.name,
-                    field=key)
+                ExceptionCollector.appendException(
+                    UnknownFieldError(
+                        what='"requirements" of template "%s"' % self.name,
+                        field=key))
 
     def _validate_interfaces(self):
         ifaces = self.type_definition.get_value(self.INTERFACES,
@@ -200,19 +247,21 @@ class NodeTemplate(EntityTemplate):
                         self._common_validate_field(
                             value, InterfacesDef.
                             interfaces_node_lifecycle_operations,
-                            'Interfaces')
+                            'interfaces')
                     elif name in (CONFIGURE, CONFIGURE_SHORTNAME):
                         self._common_validate_field(
                             value, InterfacesDef.
-                            interfaces_relationship_confiure_operations,
-                            'Interfaces')
+                            interfaces_relationship_configure_operations,
+                            'interfaces')
                     else:
-                        raise UnknownFieldError(
-                            what='Interfaces of template %s' % self.name,
-                            field=name)
+                        ExceptionCollector.appendException(
+                            UnknownFieldError(
+                                what='"interfaces" of template "%s"' %
+                                self.name, field=name))
 
     def _validate_fields(self, nodetemplate):
         for name in nodetemplate.keys():
-            if name not in self.SECTIONS:
-                raise UnknownFieldError(what='Node template %s'
-                                        % self.name, field=name)
+            if name not in self.SECTIONS and name not in self.SPECIAL_SECTIONS:
+                ExceptionCollector.appendException(
+                    UnknownFieldError(what='Node template "%s"' % self.name,
+                                      field=name))

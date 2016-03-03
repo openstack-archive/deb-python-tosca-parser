@@ -10,9 +10,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from toscaparser.common.exception import ExceptionCollector
 from toscaparser.common.exception import InvalidTypeError
 from toscaparser.elements.attribute_definition import AttributeDef
-from toscaparser.elements.entitytype import EntityType
+from toscaparser.elements.entity_type import EntityType
 from toscaparser.elements.property_definition import PropertyDef
 
 
@@ -23,10 +24,10 @@ class StatefulEntityType(EntityType):
                                             'configure', 'start',
                                             'stop', 'delete']
 
-    interfaces_relationship_confiure_operations = ['post_configure_source',
-                                                   'post_configure_target',
-                                                   'add_target',
-                                                   'remove_target']
+    interfaces_relationship_configure_operations = ['post_configure_source',
+                                                    'post_configure_target',
+                                                    'add_target',
+                                                    'remove_target']
 
     def __init__(self, entitytype, prefix, custom_def=None):
         entire_entitytype = entitytype
@@ -38,13 +39,15 @@ class StatefulEntityType(EntityType):
         elif custom_def and entitytype in list(custom_def.keys()):
             self.defs = custom_def[entitytype]
         else:
-            raise InvalidTypeError(what=entitytype)
+            self.defs = None
+            ExceptionCollector.appendException(
+                InvalidTypeError(what=entitytype))
         self.type = entitytype
 
     def get_properties_def_objects(self):
         '''Return a list of property definition objects.'''
         properties = []
-        props = self.get_value(self.PROPERTIES)
+        props = self.get_definition(self.PROPERTIES)
         if props:
             for prop, schema in props.items():
                 properties.append(PropertyDef(prop, None, schema))
@@ -63,7 +66,7 @@ class StatefulEntityType(EntityType):
 
     def get_attributes_def_objects(self):
         '''Return a list of attribute definition objects.'''
-        attrs = self.get_value(self.ATTRIBUTES)
+        attrs = self.get_value(self.ATTRIBUTES, parent=True)
         if attrs:
             return [AttributeDef(attr, None, schema)
                     for attr, schema in attrs.items()]

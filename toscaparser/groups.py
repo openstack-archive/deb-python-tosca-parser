@@ -10,18 +10,46 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from toscaparser.common.exception import ExceptionCollector
+from toscaparser.common.exception import UnknownFieldError
+from toscaparser.entity_template import EntityTemplate
+from toscaparser.utils import validateutils
 
-class NodeGroup(object):
+SECTIONS = (TYPE, METADATA, DESCRIPTION, PROPERTIES, TARGETS, INTERFACES) = \
+           ('type', 'metadata', 'description',
+            'properties', 'members', 'interfaces')
 
-    def __init__(self, name, group_templates, member_nodes):
+
+class Group(EntityTemplate):
+
+    def __init__(self, name, group_templates, member_nodes, custom_defs=None):
+        super(Group, self).__init__(name,
+                                    group_templates,
+                                    'group_type',
+                                    custom_defs)
         self.name = name
         self.tpl = group_templates
-        self.members = member_nodes
+        self.meta_data = None
+        if self.METADATA in self.tpl:
+            self.meta_data = self.tpl.get(self.METADATA)
+            validateutils.validate_map(self.meta_data)
+        self.member_nodes = member_nodes
+        self._validate_keys()
 
     @property
-    def member_names(self):
-        return self.tpl.get('members')
+    def members(self):
+        return self.entity_tpl.get('members')
 
     @property
-    def policies(self):
-        return self.tpl.get('policies')
+    def description(self):
+        return self.entity_tpl.get('description')
+
+    def get_member_nodes(self):
+        return self.member_nodes
+
+    def _validate_keys(self):
+        for key in self.entity_tpl.keys():
+            if key not in SECTIONS:
+                ExceptionCollector.appendException(
+                    UnknownFieldError(what='Groups "%s"' % self.name,
+                                      field=key))

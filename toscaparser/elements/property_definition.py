@@ -10,11 +10,15 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from toscaparser.common.exception import ExceptionCollector
 from toscaparser.common.exception import InvalidSchemaError
+from toscaparser.utils.gettextutils import _
 
 
 class PropertyDef(object):
     '''TOSCA built-in Property type.'''
+
+    VALID_REQUIRED_VALUES = ['true', 'false']
 
     def __init__(self, name, value=None, schema=None):
         self.name = name
@@ -24,9 +28,24 @@ class PropertyDef(object):
         try:
             self.schema['type']
         except KeyError:
-            msg = (_("Property definition of %(pname)s must have type.") %
-                   dict(pname=self.name))
-            raise InvalidSchemaError(message=msg)
+            msg = (_('Schema definition of "%(pname)s" must have a "type" '
+                     'attribute.') % dict(pname=self.name))
+            ExceptionCollector.appendException(
+                InvalidSchemaError(message=msg))
+
+        if 'required' in self.schema:
+            required = self.schema['required']
+            if not isinstance(required, bool):
+                if required.lower() not in self.VALID_REQUIRED_VALUES:
+                    valid_values = ', '.join(self.VALID_REQUIRED_VALUES)
+                    msg = (_('Schema definition of "%(propname)s" has '
+                             '"required" attribute with invalid value '
+                             '"%(value1)s". The value must be one of '
+                             '"%(value2)s".') % {"propname": self.name,
+                                                 "value1": required,
+                                                 "value2": valid_values})
+                    ExceptionCollector.appendException(
+                        InvalidSchemaError(message=msg))
 
     @property
     def required(self):

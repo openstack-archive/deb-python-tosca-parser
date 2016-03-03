@@ -11,8 +11,11 @@
 #    under the License.
 
 from toscaparser.common import exception
+from toscaparser.elements.property_definition import PropertyDef
+from toscaparser.nodetemplate import NodeTemplate
 from toscaparser.properties import Property
 from toscaparser.tests.base import TestCase
+from toscaparser.utils.gettextutils import _
 from toscaparser.utils import yamlparser
 
 
@@ -30,7 +33,7 @@ class PropertyTest(TestCase):
                                     test_property_schema)
         error = self.assertRaises(exception.InvalidTypeError,
                                   propertyInstance.validate)
-        self.assertEqual('Type "Fish" is not a valid type.', str(error))
+        self.assertEqual(_('Type "Fish" is not a valid type.'), str(error))
 
     def test_list(self):
         test_property_schema = {'type': 'list'}
@@ -44,7 +47,7 @@ class PropertyTest(TestCase):
         propertyInstance = Property('test_property', 'a',
                                     test_property_schema)
         error = self.assertRaises(ValueError, propertyInstance.validate)
-        self.assertEqual('"a" is not a list', str(error))
+        self.assertEqual(_('"a" is not a list.'), str(error))
 
     def test_list_entry_schema(self):
         test_property_schema = {'type': 'list',
@@ -73,8 +76,7 @@ class PropertyTest(TestCase):
         propertyInstance = Property('test_property', [1, 'b'],
                                     test_property_schema)
         error = self.assertRaises(ValueError, propertyInstance.validate)
-        self.assertEqual('"b" is not an integer',
-                         str(error))
+        self.assertEqual(_('"b" is not an integer.'), str(error))
 
     def test_map(self):
         test_property_schema = {'type': 'map'}
@@ -88,7 +90,7 @@ class PropertyTest(TestCase):
         propertyInstance = Property('test_property', 12,
                                     test_property_schema)
         error = self.assertRaises(ValueError, propertyInstance.validate)
-        self.assertEqual('"12" is not a map', str(error))
+        self.assertEqual(_('"12" is not a map.'), str(error))
 
     def test_map_entry_schema(self):
         test_property_schema = {'type': 'map',
@@ -107,7 +109,7 @@ class PropertyTest(TestCase):
                                     {'valid': True, 'contact_name': 123},
                                     test_property_schema)
         error = self.assertRaises(ValueError, propertyInstance.validate)
-        self.assertEqual('"123" is not a boolean', str(error))
+        self.assertEqual(_('"123" is not a boolean.'), str(error))
 
     def test_boolean(self):
         test_property_schema = {'type': 'boolean'}
@@ -124,7 +126,7 @@ class PropertyTest(TestCase):
         propertyInstance = Property('test_property', 12,
                                     test_property_schema)
         error = self.assertRaises(ValueError, propertyInstance.validate)
-        self.assertEqual('"12" is not a boolean', str(error))
+        self.assertEqual(_('"12" is not a boolean.'), str(error))
 
     def test_float(self):
         test_property_schema = {'type': 'float'}
@@ -138,7 +140,7 @@ class PropertyTest(TestCase):
         propertyInstance = Property('test_property', 12,
                                     test_property_schema)
         error = self.assertRaises(ValueError, propertyInstance.validate)
-        self.assertEqual('"12" is not a float', str(error))
+        self.assertEqual(_('"12" is not a float.'), str(error))
 
     def test_timestamp(self):
         test_property_schema = {'type': 'timestamp'}
@@ -181,10 +183,129 @@ class PropertyTest(TestCase):
         propertyInstance = Property('test_property', '2015-04-115T02:59:43.1Z',
                                     test_property_schema)
         error = self.assertRaises(ValueError, propertyInstance.validate)
-        self.assertEqual('day is out of range for month', str(error))
+        self.assertEqual(_('day is out of range for month'), str(error))
 
     def test_required(self):
         test_property_schema = {'type': 'string'}
         propertyInstance = Property('test_property', 'Foo',
                                     test_property_schema)
         self.assertEqual(True, propertyInstance.required)
+
+    def test_proprety_inheritance(self):
+
+        tosca_custom_def = '''
+          tosca.nodes.SoftwareComponent.MySoftware:
+            derived_from: SoftwareComponent
+            properties:
+              install_path:
+                required: false
+                type: string
+                default: /opt/mysoftware
+        '''
+
+        tosca_node_template = '''
+          node_templates:
+            mysoftware_instance:
+              type: tosca.nodes.SoftwareComponent.MySoftware
+              properties:
+                component_version: 3.1
+        '''
+
+        expected_properties = ['component_version',
+                               'install_path']
+
+        tpl = self._get_nodetemplate(tosca_node_template, tosca_custom_def)
+        self.assertIsNone(tpl.validate())
+        self.assertEqual(expected_properties,
+                         sorted(tpl.get_properties().keys()))
+
+    def test_missing_property_type(self):
+        tpl_snippet = '''
+         properties:
+           prop:
+             typo: tosca.mytesttype.Test
+        '''
+        schema = yamlparser.simple_parse(tpl_snippet)
+        error = self.assertRaises(exception.InvalidSchemaError, PropertyDef,
+                                  'prop', None, schema['properties']['prop'])
+        self.assertEqual(_('Schema definition of "prop" must have a "type" '
+                           'attribute.'), str(error))
+
+    def test_invalid_required_value(self):
+        tpl_snippet = '''
+         properties:
+           prop:
+             type: tosca.mytesttype.Test
+             required: dunno
+        '''
+        schema = yamlparser.simple_parse(tpl_snippet)
+        error = self.assertRaises(exception.InvalidSchemaError, PropertyDef,
+                                  'prop', None, schema['properties']['prop'])
+
+        valid_values = ', '.join(PropertyDef.VALID_REQUIRED_VALUES)
+        expected_message = (_('Schema definition of "prop" has "required" '
+                              'attribute with invalid value "dunno". The '
+                              'value must be one of "%s".') % valid_values)
+        self.assertEqual(expected_message, str(error))
+
+    def test_capability_proprety_inheritance(self):
+        tosca_custom_def_example1 = '''
+          tosca.capabilities.ScalableNew:
+            derived_from: tosca.capabilities.Scalable
+            properties:
+              max_instances:
+                type: integer
+                default: 0
+                required: no
+
+          tosca.nodes.ComputeNew:
+            derived_from: tosca.nodes.Compute
+            capabilities:
+              scalable:
+                type: tosca.capabilities.ScalableNew
+        '''
+
+        tosca_node_template_example1 = '''
+          node_templates:
+            compute_instance:
+              type: tosca.nodes.ComputeNew
+              capabilities:
+                scalable:
+                  properties:
+                    min_instances: 1
+        '''
+
+        tosca_custom_def_example2 = '''
+          tosca.nodes.ComputeNew:
+            derived_from: tosca.nodes.Compute
+            capabilities:
+              new_cap:
+                type: tosca.capabilities.Scalable
+        '''
+
+        tosca_node_template_example2 = '''
+          node_templates:
+            db_server:
+                type: tosca.nodes.ComputeNew
+                capabilities:
+                  host:
+                   properties:
+                     num_cpus: 1
+        '''
+
+        tpl1 = self._get_nodetemplate(tosca_node_template_example1,
+                                      tosca_custom_def_example1)
+        self.assertIsNone(tpl1.validate())
+
+        tpl2 = self._get_nodetemplate(tosca_node_template_example2,
+                                      tosca_custom_def_example2)
+        self.assertIsNone(tpl2.validate())
+
+    def _get_nodetemplate(self, tpl_snippet,
+                          custom_def_snippet=None):
+        nodetemplates = yamlparser.\
+            simple_parse(tpl_snippet)['node_templates']
+        custom_def = yamlparser.simple_parse(custom_def_snippet)
+        name = list(nodetemplates.keys())[0]
+        tpl = NodeTemplate(name, nodetemplates, custom_def)
+        return tpl
