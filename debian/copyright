@@ -2,10 +2,6 @@ Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: tosca-parser
 Source: git://github.com/openstack/tosca-parser.git
 
-Files: debian/*
-Copyright: (c) 2015, Thomas Goirand <zigo@debian.org>
-License: Apache-2.0
-
 Files: *
 Copyright: (c) 2014-2015, OpenStack Foundation <openstack-dev@lists.openstack.org>
            (c) 2014-2015, b1-systems
@@ -16,6 +12,11 @@ Copyright: (c) 2014-2015, OpenStack Foundation <openstack-dev@lists.openstack.or
            (c) 2014-2015, Huawei
            (c) 2014-2015, Fujitsu
            (c) 2014-2015, Mirantis
+License: Apache-2.0
+
+Files: debian/*
+Copyright: (c) 2015, Thomas Goirand <zigo@debian.org>
+           (c) 2016, Ondřej Nový <novy@ondrej.org>
 License: Apache-2.0
 
 License: Apache-2.0

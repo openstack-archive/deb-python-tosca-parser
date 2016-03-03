@@ -1,6 +1,12 @@
-python-tosca-parser (0.1.0-4) UNRELEASED; urgency=medium
+python-tosca-parser (0.4.0-1) UNRELEASED; urgency=medium
 
+  * New upstream release.
   * Fixed VCS URLs (https).
+  * Fixed (build-)depends for new release.
+  * Standards-Version is 3.9.7 now (no change).
+  * Added myself to d/copyright.
+  * Fixed order in d/copyright.
+  * Install /usr/bin/tosca-parser as alternatives in both packages.
 
  -- Ondřej Nový <novy@ondrej.org>  Sun, 28 Feb 2016 15:52:18 +0100
 

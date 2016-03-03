@@ -1,0 +1,11 @@
+#!/bin/sh
+
+set -e
+
+if [ "$1" = "remove" ] ; then
+	update-alternatives --remove tosca-parser /usr/bin/python2-tosca-parser
+fi
+
+#DEBHELPER#
+
+exit 0
