@@ -1,5 +1,5 @@
 Depends: python-tosca-parser
-Test-Command: python -c "import toscaparser; print toscaparser.__version__"
+Test-Command: cd "$ADTTMP" ; python -c "import toscaparser; print toscaparser.__version__"
 
 Depends: python3-tosca-parser
-Test-Command: python3 -c "import toscaparser; print(toscaparser.__version__)"
+Test-Command: cd "$ADTTMP" ; python3 -c "import toscaparser; print(toscaparser.__version__)"
