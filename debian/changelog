@@ -12,6 +12,7 @@ python-tosca-parser (0.4.0-1) UNRELEASED; urgency=medium
   * Fixed hardcoded Python 2.7 version when running unit tests
   * Standards-Version is 3.9.8 now (no change)
   * d/rules: Changed UPSTREAM_GIT protocol to https
+  * d/copyright: Changed source URL to https protocol
 
  -- Ondřej Nový <novy@ondrej.org>  Sun, 28 Feb 2016 15:52:18 +0100
 

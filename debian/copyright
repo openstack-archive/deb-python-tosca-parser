@@ -1,6 +1,6 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: tosca-parser
-Source: git://github.com/openstack/tosca-parser.git
+Source: https://github.com/openstack/tosca-parser
 
 Files: *
 Copyright: (c) 2014-2015, OpenStack Foundation <openstack-dev@lists.openstack.org>
