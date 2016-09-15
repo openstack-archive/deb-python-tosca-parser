@@ -1,4 +1,5 @@
 [gerrit]
 host=review.openstack.org
 port=29418
-project=openstack/tosca-parser.git
+project=openstack/deb-python-tosca-parser.git
+defaultbranch=debian/newton
