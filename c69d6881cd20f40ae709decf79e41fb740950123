@@ -1,0 +1,8 @@
+Code-Review+2: Sahdev Zala <spzala@us.ibm.com>
+Workflow+1: Sahdev Zala <spzala@us.ibm.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Sun, 16 Oct 2016 23:41:43 +0000
+Reviewed-on: https://review.openstack.org/361100
+Project: openstack/deb-python-tosca-parser
+Branch: refs/heads/master
