@@ -1,0 +1,9 @@
+Code-Review+2: Sahdev Zala <spzala@us.ibm.com>
+Code-Review+2: Bob Haddleton <bob.haddleton@nokia.com>
+Workflow+1: Bob Haddleton <bob.haddleton@nokia.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Sat, 11 Mar 2017 16:09:23 +0000
+Reviewed-on: https://review.openstack.org/441119
+Project: openstack/deb-python-tosca-parser
+Branch: refs/heads/master
