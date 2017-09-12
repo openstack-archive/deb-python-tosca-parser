@@ -1,7 +1,0 @@
-[run]
-branch = True
-source = toscaparser
-omit = toscaparser/openstack/*
-
-[report]
-ignore_errors = True
